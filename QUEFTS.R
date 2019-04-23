@@ -36,7 +36,8 @@
 #' results[] <- NA
 #' results[rasters_input[,'index']] <- yields
 QUEFTS <- function(siteSoilNutrient,
-                   ad = matrix(c(26, 180, 24, 60, 540, 96)),  #Sattari 2014 parameters
+                   a = c(26, 180, 24),
+                   d = c(60, 540, 96),  #Sattari 2014 parameters
                    nutrients_kg.ha) { 
   
   #### SOIL NUTRIENTS ####
@@ -45,10 +46,6 @@ QUEFTS <- function(siteSoilNutrient,
   soilK <- siteSoilNutrient['soilK']   #mmol/kg
   soilpH <- siteSoilNutrient['soilpH']
   Yatt <- as.numeric(siteSoilNutrient['WY'])#kg/ha
-  
-  #### \\ Accumulation and dilution parameters####
-  a <- c(ad[1], ad[2], ad[3])
-  d <- c(ad[4], ad[5], ad[6])
   
   #### \\ MAIZE PARAMETERS ####
   RecFrac <- c(0.5, 0.1, 0.5)   #Recovery fraction (proportion, kg/kg)
@@ -61,7 +58,7 @@ QUEFTS <- function(siteSoilNutrient,
   #### \\ pH CORRECTION FACTOR. Sattari 2014####
   fN <- 0.25*(soilpH-3)
   fP <- 1.0 - 0.5*(soilpH-6)^2
-  fK <- 0.625*(3.4-0.4*soilpH) + I[3]
+  fK <- 0.625*(3.4-0.4*soilpH)
   
   #### \\ SUPPLY OF NUTRIENTS ####
   SN <- 6.8*fN*soilC + I[1]
@@ -100,6 +97,6 @@ QUEFTS <- function(siteSoilNutrient,
   YKP <- combine_yields(UK, a[3], d[3], r[3], Ya1 = YaK, Yd1 = YdK, Ya2 = YaP, Yd2 = YdP, Yd3 = YdN, Yatt = Yatt)
   
   # Initial yield estimate (kg/ha)	
-  YE <- (YNP+YNK+YPN+YPK+YKN+YKP)/6
+  YE <- mean(YNP, YNK, YPN, YPK, YKN, YKP)
   return(YE)
 }
