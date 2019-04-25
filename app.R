@@ -23,9 +23,9 @@ ui = dashboardPage(
       h2("INPUTS"),
       
       div( style = "width:400px",
-           h4("2 Fertilizer Information"),
+           h4("1 Fertilizer Information"),
            
-           checkboxGroupInput(inputId = 'in21', label = '2.1 Fertilizer Mass Fraction (N,P,K)',
+           checkboxGroupInput(inputId = 'in21', label = '1.1 Fertilizer Mass Fraction (N,P,K)',
                               choices = list("NPK (0.14, 0.061, 0.116)" = "NPK",
                                              "UREA (0.46, 0.0, 0.0)" = "UREA",
                                              "Fert 3 (.180, .209, 0)" = "Fert_3"
@@ -55,7 +55,7 @@ ui = dashboardPage(
       #              value = 10, min = 0, max = NA, step = NA),
       #Farm Information
       div( style = "display:inline;background-color: rgb(120, 120, 120);color:White;width:400px", #;height:120px
-           h4("1 Farm Information"),
+           h4("2 Farm Information"),
            # numericInput(inputId = 'in11', label = "1.1 Farm Size (HA)", 
            #              value = 10, min = 0, max = 1000, step = NA)
            h5("Estimate yield in a location"),
@@ -73,7 +73,7 @@ ui = dashboardPage(
       # ),
       
       # Auto hide advanced options unless needed
-      a(id = "AdvancedOptions", "4 Advanced Options"),
+      a(id = "AdvancedOptions", "3 Advanced Options"),
       shinyjs::hidden(
         div( style = "width:400px",
              id = "advanced",
@@ -89,20 +89,40 @@ ui = dashboardPage(
   
   # SHOW input value in the meantime
   dashboardBody(
+    fluidRow(
     #verbatimTextOutput('point_yield_est'),
-    # tabBox(
-    #   # Title can include an icon
-    #   title = tagList(shiny::icon("corn"), "tabBox status"),
-    #   tabPanel("Tab1",
-    #            "Currently selected tab from first box:",
-    #            verbatimTextOutput('point_yield_est'),
-    #            infoBoxOutput('infoBox1')
-    #   )
-    # ),
-    infoBoxOutput('infoBox1'),
-    plotOutput("country_yield_est")
+    tabBox(
+      # Title can include an icon
+      title = tagList(shiny::icon("corn"), ""),
+      tabPanel("Point Prediction",
+               "Longitude:",
+               verbatimTextOutput('long'),
+               "Latitude:",
+               verbatimTextOutput('lati'),
+               'soil Carbon:',   
+               verbatimTextOutput('soilC'),
+               'soil Polsen:',
+               verbatimTextOutput('soilPolsen'),
+               'soil Pottasium:',
+               verbatimTextOutput('soilK'),
+               'soil pH',
+               verbatimTextOutput('soilpH'),
+               "Predicted Yield ",
+               verbatimTextOutput('point_yield_est') 
+               )
+      ),
+    # infoBoxOutput('infoBox1'),
+    tabBox(
+      # Title can include an icon
+      title = tagList(shiny::icon("corn"), ""),
+      tabPanel("Country Prediction",
+               "",
+               plotOutput("country_yield_est")
+               )
+      )
+    )
+    )
   )
-)
 
 
 
@@ -117,6 +137,18 @@ server = function(input, output, session) {
   source('combine_yields_Point.R')
   
   source('load_rasters.R')
+  
+  co_ordinate <- reactiveValues()
+  co_ordinate$long <- eventReactive( input$run_point, {input$in12})
+  co_ordinate$lati <- eventReactive( input$run_point, {input$in13})
+  co_ordinate$longlati <- eventReactive( input$run_point, {data.frame(co_ordinate$long(), co_ordinate$lati())})
+  
+  
+  point <- reactiveValues() 
+  point$soilC <- eventReactive( input$run_point, {raster::extract(soilC, co_ordinate$longlati())})
+  point$soilPolsen <- eventReactive( input$run_point, {raster::extract(soilPolsen, co_ordinate$longlati())})
+  point$soilK <- eventReactive( input$run_point, {raster::extract(soilK, co_ordinate$longlati())})
+  point$soilpH <- eventReactive( input$run_point, {raster::extract(soilpH, co_ordinate$longlati())})
   
   fert_list <- list("NPK (0.14, 0.061, 0.116)" = "NPK",
                     "UREA (0.46, 0.0, 0.0)" = "UREA",
@@ -143,19 +175,9 @@ server = function(input, output, session) {
   ##### Point Estimates ####
   run.pointmodel <- eventReactive(input$run_point, {
     # Inputs
-    long <- input$in12
-    lati <- input$in13
-    a <- sqrt(2500 * input$in11) # Distant to edges from centre - Square farm
-    point.coord <- data.frame(long, lati)
-
-    ##### Extract Point SoilNutrient Values ####
-    point.soilC <- raster::extract(soilC, point.coord)
-    point.soilPolsen <- raster::extract(soilPolsen, point.coord)
-    point.soilK <- raster::extract(soilK, point.coord)
-    point.soilpH <- raster::extract(soilpH, point.coord)
-    point.WY <- raster::extract(WY, point.coord)
     
-    siteSoilNutrient <- matrix(c(point.soilC, point.soilPolsen, point.soilK, point.soilpH), ncol = 4, byrow = TRUE)
+    ##### Extract Point SoilNutrient Values ####
+    siteSoilNutrient <- matrix(c(point$soilC(), point$soilPolsen(), point$soilK(), point$soilpH()), ncol = 4, byrow = TRUE)
     colnames(siteSoilNutrient) <- c('soilC', 'soilPolsen', 'soilK', 'soilpH')
     
     #### Calculate Point nutrients(kg/ha) Values ####
@@ -251,16 +273,15 @@ server = function(input, output, session) {
   })
   
   ##### Outputs ####
-  #output$ex_out <- renderPrint({seeinputs()})
-  output$infoBox1 <- renderInfoBox({
-    long <- input$in12
-    lati <- input$in13
-    x <- run.pointmodel()
-    color <- 'green'
-    title1 <- paste0("Estimated Prediction for Co-ordinates - Long:", long, ",  Lati: ", lati )
-    infoBox(value = x, title = title1 , color = color,  width = 4)
-  })
   output$country_yield_est <- renderPlot({run.countrymodel()})
+  
+  output$long <- renderText({co_ordinate$long()})
+  output$lati <- renderText({co_ordinate$lati()})
+  
+  output$soilC <- renderText({point$soilC()})
+  output$soilPolsen <- renderText({point$soilPolsen()})
+  output$soilK <- renderText({point$soilK()})
+  output$soilpH <- renderText({point$soilpH()})
   output$point_yield_est <- renderText({run.pointmodel()})
   
   
