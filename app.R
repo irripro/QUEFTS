@@ -7,7 +7,7 @@ library(shinydashboard)
 
 library(raster)
 library(magrittr)
-
+library(rgdal)
 
 ui = dashboardPage(
   
